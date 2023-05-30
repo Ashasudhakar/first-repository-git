@@ -1,24 +1,36 @@
-data "aws_ami" "ubuntu" {
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+data "aws_vpc" "selected" {
+  tags = {
+    Name ="testing-vpc"
   }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  owners = ["099720109477"] # Canonical
 }
 
-resource "aws_instance" "web" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.micro"
-
-  tags = {
-    Name = "HelloWorld"
+data "aws_subnets" "example" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.selected.id]
   }
+  filter {
+    name = "tag:Name"
+    values = ["*-private-*"]
+  }
+}
+
+data "aws_subnet" "example" {
+  for_each = toset(data.aws_subnets.example.ids)
+  id       = each.value
+}
+
+locals {
+    dev = [ for s in data.aws_subnet.example : s ]
+}
+
+locals {
+    dev2 = flatten([
+        for k, v in local.dev : v.id
+            if !can(v.tags.automation)
+    ])
+}
+
+output "test" {
+  value = local.dev2
 }
